@@ -95,20 +95,15 @@ async function searchProducts(message) {
   if (category) query.category = category;
   if (brand) query.brand = brand;
 
-  const searchTerms = keywords.words.filter((w) => w.length > 2);
-  if (!category && !brand && searchTerms.length > 0) {
-    const regexTerms = searchTerms.map((t) => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-    query.$or = [
-      { name: { $in: regexTerms } },
-      { description: { $in: regexTerms } },
-      { category: { $in: regexTerms } },
-      { brand: { $in: regexTerms } },
-      ...regexTerms.map((r) => ({ 'specs': { $regex: r.source, $options: 'i' } })),
-    ];
-  } else if (searchTerms.length > 0) {
-    const searchRegex = new RegExp(searchTerms.join('|').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    if (!query.$or) query.$or = [];
-    query.$or.push({ name: searchRegex }, { description: searchRegex });
+  if (!category && !brand) {
+    const searchTerms = keywords.words.filter((w) => w.length > 2);
+    if (searchTerms.length > 0) {
+      const pattern = searchTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      query.$or = [
+        { name: { $regex: pattern, $options: 'i' } },
+        { description: { $regex: pattern, $options: 'i' } },
+      ];
+    }
   }
 
   const products = await Product.find(query).limit(5).lean();
