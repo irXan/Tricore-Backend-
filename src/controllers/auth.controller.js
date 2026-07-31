@@ -36,10 +36,19 @@ async function seedInitialAdmin() {
   }
 
   const email = INITIAL_ADMIN_EMAIL.trim().toLowerCase();
-  const existingAdmin = await Admin.findOne({ email });
-  if (existingAdmin) return;
-
   const passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, 12);
+  const existingAdmin = await Admin.findOne({ email }).select('+passwordHash');
+
+  if (existingAdmin) {
+    const passwordChanged = !(await bcrypt.compare(INITIAL_ADMIN_PASSWORD, existingAdmin.passwordHash));
+    if (passwordChanged) {
+      existingAdmin.passwordHash = passwordHash;
+      await existingAdmin.save();
+      console.info('Initial administrator password updated to match current environment.');
+    }
+    return;
+  }
+
   await Admin.create({ email, passwordHash });
   console.info('Initial administrator account created.');
 }
