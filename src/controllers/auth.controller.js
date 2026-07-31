@@ -13,8 +13,14 @@ const cookieOptions = {
 async function login(req, res, next) {
   try {
     const email = req.body.email.toLowerCase();
+    console.log('[login] Attempting login for:', email);
     const admin = await Admin.findOne({ email }).select('+passwordHash');
-    const passwordMatches = admin && (await bcrypt.compare(req.body.password, admin.passwordHash));
+    console.log('[login] Admin found:', !!admin);
+    if (!admin) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+    const passwordMatches = await bcrypt.compare(req.body.password, admin.passwordHash);
+    console.log('[login] Password matches:', passwordMatches);
 
     if (!passwordMatches) {
       return res.status(401).json({ message: 'Invalid email or password.' });
@@ -30,27 +36,34 @@ async function login(req, res, next) {
 
 async function seedInitialAdmin() {
   const { INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD } = process.env;
+  console.log('[seed] INITIAL_ADMIN_EMAIL env:', INITIAL_ADMIN_EMAIL ? 'set' : 'MISSING');
+  console.log('[seed] INITIAL_ADMIN_PASSWORD env:', INITIAL_ADMIN_PASSWORD ? 'set' : 'MISSING');
   if (!INITIAL_ADMIN_EMAIL || !INITIAL_ADMIN_PASSWORD) {
-    console.warn('Initial admin seed skipped: set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD to enable it.');
+    console.log('[seed] Skipped — missing env vars');
     return;
   }
 
   const email = INITIAL_ADMIN_EMAIL.trim().toLowerCase();
-  const passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, 12);
+  console.log('[seed] Looking up admin:', email);
   const existingAdmin = await Admin.findOne({ email }).select('+passwordHash');
+  console.log('[seed] Existing admin found:', !!existingAdmin);
 
   if (existingAdmin) {
     const passwordChanged = !(await bcrypt.compare(INITIAL_ADMIN_PASSWORD, existingAdmin.passwordHash));
+    console.log('[seed] Password needs update:', passwordChanged);
     if (passwordChanged) {
-      existingAdmin.passwordHash = passwordHash;
+      existingAdmin.passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, 12);
       await existingAdmin.save();
-      console.info('Initial administrator password updated to match current environment.');
+      console.log('[seed] Admin password UPDATED');
+    } else {
+      console.log('[seed] Admin password already matches — no update needed');
     }
     return;
   }
 
+  const passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, 12);
   await Admin.create({ email, passwordHash });
-  console.info('Initial administrator account created.');
+  console.log('[seed] New admin CREATED:', email);
 }
 
 module.exports = { login, seedInitialAdmin };
