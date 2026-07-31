@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example
+
+# Runtime uploads and logs
+uploads/
+*.log
+logs/
+
+# Test coverage and temporary files
+coverage/
+.nyc_output/
+tmp/
+
+# Deployment and editor artifacts
+.vercel/
+.DS_Store
+Thumbs.db
+
