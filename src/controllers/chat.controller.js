@@ -91,21 +91,24 @@ async function searchProducts(message) {
   const brand = detectBrand(keywords);
   const intents = detectIntent(message);
 
+  if (!category && !brand) {
+    const searchTerms = keywords.words.filter((w) => w.length > 2);
+    if (searchTerms.length === 0) return { products: [], category, brand, intents };
+    const pattern = searchTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const products = await Product.find({
+      $or: [
+        { name: { $regex: pattern, $options: 'i' } },
+        { description: { $regex: pattern, $options: 'i' } },
+        { category: { $regex: pattern, $options: 'i' } },
+        { brand: { $regex: pattern, $options: 'i' } },
+      ],
+    }).limit(5).lean();
+    return { products, category, brand, intents };
+  }
+
   const query = {};
   if (category) query.category = category;
   if (brand) query.brand = brand;
-
-  if (!category && !brand) {
-    const searchTerms = keywords.words.filter((w) => w.length > 2);
-    if (searchTerms.length > 0) {
-      const pattern = searchTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      query.$or = [
-        { name: { $regex: pattern, $options: 'i' } },
-        { description: { $regex: pattern, $options: 'i' } },
-      ];
-    }
-  }
-
   const products = await Product.find(query).limit(5).lean();
   return { products, category, brand, intents };
 }
@@ -113,24 +116,6 @@ async function searchProducts(message) {
 function buildReply(result, message) {
   const { products, category, brand, intents } = result;
   const suggestions = [];
-
-  if (products.length > 0) {
-    const list = products.map((p) => `- **${p.name}** (${p.brand}): ${p.description.slice(0, 120)}…`).join('\n');
-    const categoryLabel = category || products[0].category;
-    const count = products.length;
-    return {
-      reply: `I found ${count} ${categoryLabel.toLowerCase()} item${count > 1 ? 's' : ''}:\n\n${list}\n\nWould you like details on any specific item, or shall I help with a quote request?`,
-      products: products.map((p) => ({
-        name: p.name,
-        slug: p.slug,
-        brand: p.brand,
-        category: p.category,
-        description: p.description.slice(0, 150),
-        specs: Object.entries(p.specs || {}).slice(0, 6).map(([k, v]) => `${k}: ${v}`),
-      })),
-      suggestions: ['Tell me more about ' + products[0].name, 'Request a quote for these items', 'Show me all ' + categoryLabel.toLowerCase()],
-    };
-  }
 
   if (intents.includes('greeting')) {
     suggestions.push('What products do you have?', 'Show me ICU equipment', 'How do I request a quote?');
@@ -184,12 +169,30 @@ function buildReply(result, message) {
     };
   }
 
-  if (intents.includes('spec')) {
+  if (intents.includes('spec') && products.length === 0) {
     suggestions.push('Show me product specifications', 'Browse the full catalogue');
     return {
       reply: 'I can look up specifications for any product in our catalogue. Tell me the product name (e.g., "LifeCare HC-300 bed specs") and I will show you the details.',
       products: [],
       suggestions,
+    };
+  }
+
+  if (products.length > 0) {
+    const list = products.map((p) => `- **${p.name}** (${p.brand}): ${p.description.slice(0, 120)}…`).join('\n');
+    const label = brand || category || products[0].category;
+    const count = products.length;
+    return {
+      reply: `I found ${count} ${label.toLowerCase()} item${count > 1 ? 's' : ''}:\n\n${list}\n\nWould you like details on any specific item, or shall I help with a quote request?`,
+      products: products.map((p) => ({
+        name: p.name,
+        slug: p.slug,
+        brand: p.brand,
+        category: p.category,
+        description: p.description.slice(0, 150),
+        specs: Object.entries(p.specs || {}).slice(0, 6).map(([k, v]) => `${k}: ${v}`),
+      })),
+      suggestions: ['Tell me more about ' + products[0].name, 'Request a quote for these items', ...(category ? ['Show me all ' + category.toLowerCase()] : [])],
     };
   }
 
