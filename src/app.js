@@ -10,8 +10,6 @@ const inquiryRoutes = require('./routes/inquiry.routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
-const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
-
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(
   cors({
@@ -25,7 +23,9 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(cookieParser());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { maxAge: '7d', fallthrough: false }));
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { maxAge: '7d', fallthrough: false }));
+}
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
