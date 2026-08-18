@@ -10,6 +10,8 @@ const {
 } = require('../controllers/product.controller');
 const requireAdmin = require('../middleware/auth.middleware');
 const validate = require('../middleware/validate.middleware');
+const { productReadLimiter } = require('../middleware/rateLimiter');
+const blockBrowser = require('../middleware/blockBrowser');
 
 const router = express.Router();
 const upload = multer({
@@ -57,8 +59,8 @@ const productValidation = [
   body('featured').optional().isBoolean().withMessage('Featured must be true or false.'),
 ];
 
-router.get('/', getProducts);
-router.get('/:slug', getProductBySlug);
+router.get('/', blockBrowser, productReadLimiter, getProducts);
+router.get('/:slug', blockBrowser, productReadLimiter, getProductBySlug);
 router.post('/', requireAdmin, upload.array('newImages', 8), productValidation, validate, createProduct);
 router.put(
   '/:id',
